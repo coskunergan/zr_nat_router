@@ -1,0 +1,24 @@
+
+#include <zephyr/dt-bindings/pinctrl/esp-pinctrl-common.h>
+#include <dt-bindings/pinctrl/esp32c6-pinctrl.h>
+#include <zephyr/dt-bindings/pinctrl/esp32c6-gpio-sigmap.h>
+
+/ { 	
+	leds {
+		compatible = "gpio-leds";
+		red_led: red_led {
+			gpios = <&gpio0 7 GPIO_ACTIVE_HIGH>;
+			label = "Red LED";
+		};
+	};	
+	wifi_ap: wifi_ap {
+		compatible = "espressif,esp32-wifi";
+		status = "okay";
+	};	
+};
+
+&wifi {
+    status = "okay";
+};
+
+

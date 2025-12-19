@@ -1,0 +1,20 @@
+# See doc/develop/test/twister.rst for what is here.
+sample:
+  name: Rust NAT Router Sample
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_riscv32
+    - qemu_riscv64    
+    - esp32c3_devkitc
+    - esp32c6_devkitc
+tests:
+  sample.basic.drivers:
+    tags:
+    filter: 
+    depends_on:
+    extra_configs:
+    harness:
+    integration_platforms:
+      - esp32c3_devkitc
+      - esp32c6_devkitc

@@ -1,0 +1,95 @@
+
+#include <zephyr/dt-bindings/pinctrl/esp-pinctrl-common.h>
+#include <dt-bindings/pinctrl/esp32c3-pinctrl.h>
+#include <zephyr/dt-bindings/pinctrl/esp32c3-gpio-sigmap.h>
+
+/ { 		
+	leds {
+		compatible = "gpio-leds";
+		red_led: red_led {
+			gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+			label = "Red LED";
+		};
+	};
+	wifi_ap: wifi_ap {
+		compatible = "espressif,esp32-wifi";
+		status = "okay";
+	};		
+};
+
+&pinctrl {
+    uart0_pins: uart0_pins {
+		group1 {
+			pinmux = <UART0_TX_GPIO21>;
+			output-high;
+		};
+		group2 {
+			pinmux = <UART0_RX_GPIO20>;
+			bias-pull-up;
+		};
+	};
+	uart1_pins: uart1_pins {
+		group1 {
+			pinmux = <UART1_TX_GPIO18>;
+			output-high;
+		};
+		group2 {
+			pinmux = <UART1_RX_GPIO19>;
+			bias-pull-up;
+		};
+	};
+};
+
+&wifi {
+    status = "okay";
+};
+
+&uart0 {
+	pinctrl-0 = <&uart0_pins>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";	
+};
+
+&uart1 {
+	pinctrl-0 = <&uart1_pins>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";	
+};
+
+
+&flash0 {
+    reg = <0x0 DT_SIZE_M(2)>;
+    /delete-node/ partitions;
+    partitions {
+        compatible = "fixed-partitions";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        /* Bootloader - 64KB */
+        boot_partition: partition@0 {
+            label = "mcuboot";
+            reg = <0x00000000 0x00010000>;
+            read-only;
+        };
+        
+        /* Slot 0 - 960KB */
+        slot0_partition: partition@10000 {
+            label = "image-0";
+            reg = <0x00010000 0x000F0000>;
+        };
+        
+        /* Slot 1 - 960KB  */
+        slot1_partition: partition@100000 {
+            label = "image-1";
+            reg = <0x00100000 0x000F0000>;
+        };
+        
+        /* Storage - 64KB */
+        storage_partition: partition@1F0000 {
+            label = "storage";
+            reg = <0x001F0000 0x00010000>;
+        };
+    };
+};

@@ -1,0 +1,23 @@
+{
+   "workspaceFolder": {
+   "path": ".",
+   "zephyrproject": "%HOMEPATH%/zephyrproject",
+   "AppUnderDev": "${workspaceRoot}"
+   },
+"bsp": {
+   //"board": "esp32c3_rust",
+   //"board": "esp32c3_devkitm",
+   //"board": "esp32c3_devkitc",
+   "board": "esp32c6_devkitc/esp32c6/hpcore",
+ },
+ "app": {
+   "name": "${config:workspaceFolder.AppUnderDev}",
+   "build_dir": "${workspaceFolder}/build",
+   },
+   "files.associations": {
+      "cstdint": "c",
+      "compare": "c",
+      "cstdlib": "c",
+      "ctype.h": "c",
+   }
+}
