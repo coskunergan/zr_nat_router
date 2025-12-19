@@ -1,4 +1,0 @@
-    Updating crates.io index
-error: no matching package named `zephyr-build` found
-location searched: crates.io index
-required by package `rustapp v0.1.0 (/home/cergan/github/zr_nat_router)`
