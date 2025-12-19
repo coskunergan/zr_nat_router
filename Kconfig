@@ -33,11 +33,11 @@ config WIFI_SAMPLE_AP_NETMASK
 
 config WIFI_SAMPLE_SSID
 	string "WIFI SSID - Network name"
-	default "SUPERONLINE_Wi-Fi_3AS4"
+	default "router_ssid"
 
 config WIFI_SAMPLE_PSK
 	string "WIFI PSK - Network password key"
-	default "K7Q3SKzKC7QN"
+	default "router_pass"
 
 config WIFI_SAMPLE_AP_SSID
 	string "WIFI AP SSID - Network name"

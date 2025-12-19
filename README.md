@@ -26,7 +26,7 @@ ZR NAT Router focuses on correctness, simplicity, and real-time suitability rath
 
 ## Wi-Fi Throughput Comparison
 
-The following table is intended for experimentally measured values. Replace the placeholders with results obtained from your test environment.
+The following table is intended for experimentally measured values;
 
 | Board | Arch | Optimization | CPU Frequency | Throughput | Power |
 | ----- | ----- | ----- | ------------ | ------------- | ---------- |
