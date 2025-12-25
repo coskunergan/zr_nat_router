@@ -5,7 +5,7 @@
 use crate::nat::NetIf;
 
 const NAT_TIMEOUT_TCP_MS: u32 = 45_000;
-const NAT_TIMEOUT_UDP_MS: u32 = 30_000; 
+const NAT_TIMEOUT_UDP_MS: u32 = 30_000;
 const NAT_TIMEOUT_ICMP_MS: u32 = 20_000;
 
 /// IP protocol types

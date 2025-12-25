@@ -47,8 +47,8 @@ pub struct Wifi {
 }
 
 impl Wifi {
-    pub fn wifi_connect() {        
-        let (ssid, psk) = (get_default_ssid(), get_default_psk());                        
+    pub fn wifi_connect() {
+        let (ssid, psk) = (get_default_ssid(), get_default_psk());
         unsafe {
             set_wifi_credentials(ssid.as_bytes(), psk.as_bytes());
         }
@@ -56,11 +56,14 @@ impl Wifi {
     }
 }
 
-type Ssid = String<32>;
-type Psk = String<64>;
-
 static mut CURRENT_SSID: [u8; 33] = [0; 33];
 static mut CURRENT_PSK: [u8; 65] = [0; 65];
+
+static mut CURRENT_SSID_LEN: u8 = 0;
+static mut CURRENT_PSK_LEN: u8 = 0;
+
+static mut CURRENT_SSID_PTR: *mut u8 = core::ptr::null_mut();
+static mut CURRENT_PSK_PTR: *mut u8 = core::ptr::null_mut();
 
 unsafe fn set_wifi_credentials(ssid: &[u8], psk: &[u8]) {
     CURRENT_SSID = [0; 33];
@@ -68,27 +71,32 @@ unsafe fn set_wifi_credentials(ssid: &[u8], psk: &[u8]) {
 
     let ssid_len = ssid.len().min(32);
     CURRENT_SSID[..ssid_len].copy_from_slice(&ssid[..ssid_len]);
+    CURRENT_SSID_LEN = ssid_len as u8;
 
     let psk_len = psk.len().min(64);
     CURRENT_PSK[..psk_len].copy_from_slice(&psk[..psk_len]);
+    CURRENT_PSK_LEN = psk_len as u8;
+
+    CURRENT_SSID_PTR = core::ptr::addr_of_mut!(CURRENT_SSID) as *mut u8;
+    CURRENT_PSK_PTR = core::ptr::addr_of_mut!(CURRENT_PSK) as *mut u8;
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn get_current_ssid() -> *const u8 {
-    CURRENT_SSID.as_ptr()
+    CURRENT_SSID_PTR as *const u8
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn get_current_ssid_len() -> u8 {
-    CURRENT_SSID.iter().position(|&b| b == 0).unwrap_or(32) as u8
+    CURRENT_SSID_LEN
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn get_current_psk() -> *const u8 {
-    CURRENT_PSK.as_ptr()
+    CURRENT_PSK_PTR as *const u8
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn get_current_psk_len() -> u8 {
-    CURRENT_PSK.iter().position(|&b| b == 0).unwrap_or(64) as u8
+    CURRENT_PSK_LEN
 }

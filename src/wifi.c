@@ -37,6 +37,7 @@ extern uint8_t get_current_ssid_len(void);
 extern const uint8_t *get_current_ssid(void);
 extern uint8_t get_current_psk_len(void);
 extern const uint8_t *get_current_psk(void);
+extern int nat_configure(const uint8_t *, const uint8_t *, const uint8_t *, struct net_if *, struct net_if *);
 
 #if CONFIG_NET_DHCPV4_SERVER
 static void enable_dhcpv4_server(void)
@@ -60,21 +61,25 @@ static void enable_dhcpv4_server(void)
     if(net_addr_pton(AF_INET, CONFIG_WIFI_SAMPLE_AP_IP_ADDRESS, &ap_ip))
     {
         LOG_ERR("Error: Invalid IP address");
-        return -EINVAL;
-    }    
+        return;
+    }
 
     if(net_addr_pton(AF_INET, CONFIG_WIFI_SAMPLE_AP_NETMASK, &netmask))
     {
         LOG_ERR("Error: Invalid Netmask");
-        return -EINVAL;
-    }  
+        return;
+    }
 
     gateway = ap_ip;
 
     net_if_ipv4_addr_rm(ap_iface, &ap_ip);
     net_if_ipv4_addr_add(ap_iface, &ap_ip, NET_ADDR_MANUAL, 0);
 
-    net_if_ipv4_set_netmask(ap_iface, &netmask);
+    if(!net_if_ipv4_set_netmask_by_addr(ap_iface, &ap_ip, &netmask))
+    {
+        LOG_ERR("AP Netmask settings failure.");
+        return;
+    }
 
     net_if_ipv4_set_gw(ap_iface, &gateway);
 
@@ -101,27 +106,27 @@ static void ip_config_work_handler(struct k_work *work)
         return;
     }
 
-    net_dhcpv4_stop(sta_iface);    
+    net_dhcpv4_stop(sta_iface);
 
     struct in_addr sta_ip;
-    struct in_addr netmask;    
+    struct in_addr netmask;
     struct in_addr gateway;
 
     if(net_addr_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &sta_ip))
     {
         LOG_ERR("Error: Invalid IP address");
-        return -EINVAL;
+        return ;
     }
     if(net_addr_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_NETMASK, &netmask))
     {
         LOG_ERR("Error: Invalid Net Mask");
-        return -EINVAL;
+        return;
     }
     if(net_addr_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_GW, &gateway))
     {
         LOG_ERR("Error: Invalid Gateway");
-        return -EINVAL;
-    }    
+        return;
+    }
 
     net_if_ipv4_addr_rm(sta_iface, &sta_ip);
 
@@ -132,9 +137,14 @@ static void ip_config_work_handler(struct k_work *work)
         return;
     }
 
-    net_if_ipv4_set_netmask(sta_iface, &netmask);
+    if(!net_if_ipv4_set_netmask_by_addr(sta_iface, &sta_ip, &netmask))
+    {
+        LOG_ERR("STA Netmask settings failure.");
+        return;
+    }
+
     net_if_ipv4_set_gw(sta_iface, &gateway);
-    
+
     LOG_INF("[STA-IP]   IP:      %u.%u.%u.%u\n",
             sta_ip.s4_addr[0], sta_ip.s4_addr[1],
             sta_ip.s4_addr[2], sta_ip.s4_addr[3]);
@@ -335,4 +345,32 @@ void wifi_connect(void)
     {
         LOG_ERR("WiFi STA connection failed!");
     }
+
+#if defined(CONFIG_NET_IPV4_NAT)    
+    uint8_t internal_net[4] = {192, 168, 4, 0};
+    uint8_t internal_mask[4];
+    uint8_t external_ip[4];
+
+    if(net_addr_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_NETMASK, &internal_mask))
+    {
+        LOG_ERR("Error: Invalid Net Mask");
+        return;
+    }
+
+    if(net_addr_pton(AF_INET, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &external_ip))
+    {
+        LOG_ERR("Error: Invalid IP address");
+        return ;
+    }    
+
+    if(nat_configure(internal_net, internal_mask, external_ip,
+                     ap_iface, sta_iface) < 0)
+    {
+        LOG_ERR("Failed to configure NAT with interfaces");
+    }
+    else
+    {
+        LOG_INF("NAT configured: AP=%p STA=%p", ap_iface, sta_iface);
+    }
+#endif
 }

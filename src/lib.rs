@@ -5,7 +5,6 @@
 #![no_std]
 
 extern crate alloc;
-use alloc::format;
 
 use embassy_time::{Duration, Timer};
 
@@ -18,8 +17,8 @@ use zephyr::embassy::Executor;
 use embassy_executor::Spawner;
 use static_cell::StaticCell;
 
-use zephyr::device::gpio::GpioPin;
 use pin::{GlobalPin, Pin};
+use zephyr::device::gpio::GpioPin;
 
 use crate::wifi::Wifi;
 
@@ -40,7 +39,7 @@ const PATCHLEVEL: &str = env!("PATCHLEVEL");
 const EXTRAVERSION: &str = env!("EXTRAVERSION");
 
 #[embassy_executor::task]
-async fn led_task(spawner: Spawner) {
+async fn led_task(_spawner: Spawner) {
     let red_led_pin = RED_LED_PIN.get();
     loop {
         log::info!(

@@ -49,4 +49,28 @@ config WIFI_SAMPLE_AP_PSK
 
 endif # WIFI
 
+menuconfig NET_IPV4_NAT
+	bool "Network Address Translation (NAT) support"
+	depends on NET_IPV4
+	help
+	  Enable NAT support for IPv4. This allows the device to act as
+	  a router with network address translation capabilities.
+
+if NET_IPV4_NAT
+
+config NET_IPV4_NAT_MAX_ENTRIES
+	int "Maximum number of NAT entries"
+	default 128
+	help
+	  Maximum number of simultaneous NAT connections.
+
+config NET_IPV4_NAT_TIMEOUT
+	int "NAT entry timeout (seconds)"
+	default 300
+	help
+	  Timeout for inactive NAT entries in seconds.
+
+endif # NET_IPV4_NAT
+
 source "Kconfig.zephyr"
+

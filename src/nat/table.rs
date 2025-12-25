@@ -3,12 +3,12 @@
 // Coskun ERGAN <coskunergan@gmail.com>
 
 use super::entry::{NatEntry, Protocol};
-use crate::ffi::*;
 use crate::nat::NetIf;
 use crate::packet::PacketContext;
 use heapless::Vec;
+use zephyr::raw::k_uptime_get_32;
 
-const MAX_NAT_ENTRIES: usize = 128;
+const MAX_NAT_ENTRIES: usize = zephyr::kconfig::CONFIG_NET_IPV4_NAT_MAX_ENTRIES as usize;
 const PORT_RANGE_START: u16 = 50000;
 const PORT_RANGE_END: u16 = 65535;
 
@@ -42,14 +42,13 @@ impl Default for NatConfig {
     }
 }
 
-use core::fmt::Write;
-use heapless::String;
-
-fn format_ip(ip: &[u8; 4]) -> String<16> {
-    let mut s: String<16> = String::new();
-    let _ = write!(s, "{}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]);
-    s
-}
+// use core::fmt::Write;
+// use heapless::String;
+// fn format_ip(ip: &[u8; 4]) -> String<16> {
+//     let mut s: String<16> = String::new();
+//     let _ = write!(s, "{}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]);
+//     s
+// }
 
 pub struct NatTable {
     entries: Vec<NatEntry, MAX_NAT_ENTRIES>,
@@ -70,13 +69,14 @@ impl NatTable {
         let current = self.entries.len();
 
         unsafe {
-            if current > PEAK_NAT_USAGE {
-                PEAK_NAT_USAGE = current;
+            let peak = core::ptr::addr_of_mut!(PEAK_NAT_USAGE);
+            if current > *peak {
+                *peak = current;
                 log::info!(
                     "[NAT STATS] New Connection: {} / {} (Peak {})",
                     current,
                     MAX_NAT_ENTRIES,
-                    PEAK_NAT_USAGE
+                    *peak
                 );
             }
         }
@@ -103,9 +103,7 @@ impl NatTable {
 
     /// Get current uptime
     fn get_uptime() -> u32 {
-        unsafe {
-            return ffi_k_uptime_get_32();
-        }
+        return unsafe { k_uptime_get_32() };
     }
 
     /// Allocate a new external port
@@ -286,7 +284,7 @@ impl NatTable {
             "[NAT OUT] Online Connection: {} / {} (Peak: {})",
             current_usage,
             MAX_NAT_ENTRIES,
-            unsafe { PEAK_NAT_USAGE }
+            unsafe { *core::ptr::addr_of!(PEAK_NAT_USAGE) }
         );
 
         Ok(())
@@ -329,8 +327,9 @@ impl NatTable {
         self.config = config;
         let current = self.entries.len();
         unsafe {
-            if current > PEAK_NAT_USAGE {
-                PEAK_NAT_USAGE = current;
+            let peak = core::ptr::addr_of_mut!(PEAK_NAT_USAGE);
+            if current > *peak {
+                *peak = current;
             }
         }
     }

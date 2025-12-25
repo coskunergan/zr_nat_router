@@ -6,22 +6,23 @@ pub mod checksum;
 pub mod entry;
 pub mod table;
 
-pub use entry::{NatEntry, Protocol};
 pub use table::NatTable;
 
 use crate::ffi::*;
 use crate::packet::PacketContext;
 
+const NAT_TIMEOUT: KtickT = zephyr::kconfig::CONFIG_NET_IPV4_NAT_TIMEOUT as KtickT;
+
 static mut NAT_TABLE: Option<NatTable> = None;
 
 #[no_mangle]
-pub extern "C" fn nat_hook_outbound(pkt: *mut NetPkt) -> i32 {
+fn nat_outbound(pkt: *mut NetPkt) -> i32 {
     if pkt.is_null() {
         log::error!("[NAT] outbound: pkt is null");
         return -1;
     }
 
-    let table = match unsafe { NAT_TABLE.as_mut() } {
+    let table = match unsafe { core::ptr::addr_of_mut!(NAT_TABLE).as_mut().unwrap() } {
         Some(t) => t,
         None => {
             log::error!("[NAT] outbound: NAT table not initialized");
@@ -60,13 +61,13 @@ pub extern "C" fn nat_hook_outbound(pkt: *mut NetPkt) -> i32 {
 
 /// Process inbound packet (WAN -> LAN)
 #[no_mangle]
-pub extern "C" fn nat_hook_inbound(pkt: *mut NetPkt) -> i32 {
+fn nat_inbound(pkt: *mut NetPkt) -> i32 {
     if pkt.is_null() {
         log::error!("[NAT] inbound: pkt is null");
         return -1;
     }
 
-    let table = match unsafe { NAT_TABLE.as_mut() } {
+    let table = match unsafe { core::ptr::addr_of_mut!(NAT_TABLE).as_mut().unwrap() } {
         Some(t) => t,
         None => {
             log::error!("[NAT] inbound: NAT table not initialized");
@@ -104,6 +105,63 @@ pub extern "C" fn nat_hook_inbound(pkt: *mut NetPkt) -> i32 {
     }
 }
 
+/// TODO: put in to the ipv4.c line: 376
+#[no_mangle]
+pub unsafe extern "C" fn nat_hook(pkt: *mut NetPkt) -> i32 {
+    if pkt.is_null() {
+        log::error!("[NAT] hook: pkt is null");
+        return -1;
+    }
+
+    // First try inbound translation (WAN -> LAN)
+    let inbound_result = nat_inbound(pkt);
+
+    match inbound_result {
+        1 => {
+            // Packet was modified by inbound NAT, send it
+            log::info!("[NAT] hook: inbound translation applied, sending packet");
+            net_try_send_data(pkt, NAT_TIMEOUT);
+            return 1;
+        }
+        -1 => {
+            // Error in inbound processing
+            log::error!("[NAT] hook: inbound processing failed");
+            return -1;
+        }
+        0 => {
+            // No inbound match, try outbound translation (LAN -> WAN)
+            let outbound_result = nat_outbound(pkt);
+
+            match outbound_result {
+                1 => {
+                    // Packet was modified by outbound NAT, send it
+                    log::info!("[NAT] hook: outbound translation applied, sending packet");
+                    net_try_send_data(pkt, NAT_TIMEOUT);
+                    return 1;
+                }
+                0 => {
+                    // No translation needed, packet can continue normally
+                    log::debug!("[NAT] hook: no translation needed");
+                    return 0;
+                }
+                -1 => {
+                    // Error in outbound processing
+                    log::error!("[NAT] hook: outbound processing failed");
+                    return -1;
+                }
+                _ => {
+                    log::error!("[NAT] hook: unexpected outbound result");
+                    return -1;
+                }
+            }
+        }
+        _ => {
+            log::error!("[NAT] hook: unexpected inbound result");
+            return -1;
+        }
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn nat_configure(
     internal_net: *const u8,
@@ -113,13 +171,17 @@ pub extern "C" fn nat_configure(
     external_iface: *mut NetIf,
 ) -> i32 {
     unsafe {
-        if NAT_TABLE.is_none() {
+        let nat_table = core::ptr::addr_of_mut!(NAT_TABLE).as_mut().unwrap();
+
+        if nat_table.is_none() {
             NAT_TABLE = Some(NatTable::new());
         }
-        let table = match NAT_TABLE.as_mut() {
+
+        let table = match nat_table {
             Some(t) => t,
             None => return -1,
         };
+
         if internal_net.is_null() || internal_mask.is_null() || external_ip.is_null() {
             return -1;
         }

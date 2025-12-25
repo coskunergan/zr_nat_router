@@ -5,7 +5,6 @@
 use crate::ffi::NetIf;
 use crate::ffi::*;
 use crate::nat::checksum::{ip_checksum, update_checksum};
-use core::mem;
 use core::ptr;
 
 #[derive(Clone, Copy)]
@@ -25,8 +24,15 @@ impl PacketContext {
         }
 
         unsafe {
-            let iface = ffi_net_pkt_iface(pkt);
-            let buf_ptr = net_pkt_get_buffer(pkt);
+            let iface = (*pkt).iface();
+            let frags = (*pkt).frags();
+
+            if frags.is_null() {
+                return None;
+            }
+
+            let buf_ptr = (*frags).data;
+
             if buf_ptr.is_null() {
                 return None;
             }
@@ -105,10 +111,17 @@ impl PacketContext {
 
         unsafe {
             if !self.iface.is_null() && self.iface != self.orig_iface {
-                ffi_net_pkt_set_iface(pkt, self.iface);
+                (*pkt).set_iface(self.iface);
             }
 
-            let buf_ptr = net_pkt_get_buffer(pkt);
+            let frags = (*pkt).frags();
+
+            if frags.is_null() {
+                return;
+            }
+
+            let buf_ptr = (*frags).data;
+
             if buf_ptr.is_null() {
                 return;
             }
