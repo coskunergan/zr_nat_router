@@ -96,10 +96,6 @@ pub type KtickT = i64;
 pub type KtickT = u32;
 
 extern "C" {
-
-    /// Mark packet as modified
-    pub fn net_pkt_set_modified(pkt: *mut NetPkt);
-
     /// packet send interface
     pub fn net_try_send_data(pkt: *mut NetPkt, timeout: KtickT) -> i32;
 }

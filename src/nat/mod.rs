@@ -105,7 +105,22 @@ fn nat_inbound(pkt: *mut NetPkt) -> i32 {
     }
 }
 
-/// TODO: put in to the ipv4.c line: 376
+/// TODO: put in to the ipv4.c line: 350
+/* NAT HOOK
+#if defined(CONFIG_NET_IPV4_NAT)
+    extern int nat_hook(struct net_pkt *pkt);
+    int nat_ret = nat_hook(pkt);
+    if(nat_ret < 0)
+    {
+        goto drop;
+    }
+    else if(nat_ret == 1)
+    {
+        return NET_OK;
+    }
+#endif
+NAT HOOK */
+
 #[no_mangle]
 pub unsafe extern "C" fn nat_hook(pkt: *mut NetPkt) -> i32 {
     if pkt.is_null() {

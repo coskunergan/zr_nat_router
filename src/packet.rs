@@ -135,7 +135,9 @@ impl PacketContext {
             ptr::copy_nonoverlapping(self.ip_hdr.dst.as_ptr(), buf_ptr.add(16), 4);
 
             // === IP Checksum  ===
-            if old_src_ip != self.ip_hdr.src || old_dst_ip != self.ip_hdr.dst {
+            let ip_changed = old_src_ip != self.ip_hdr.src || old_dst_ip != self.ip_hdr.dst;
+
+            if ip_changed {
                 let ip_hdr_full = core::slice::from_raw_parts_mut(buf_ptr, ihl);
                 ip_hdr_full[10] = 0;
                 ip_hdr_full[11] = 0;
@@ -150,109 +152,131 @@ impl PacketContext {
             match self.ip_hdr.proto {
                 6 => {
                     // TCP
-                    let tcp_hdr = core::slice::from_raw_parts_mut(l4_ptr, 20);
-                    if tcp_hdr.len() < 20 {
-                        return;
-                    }
-
-                    let old_src_port = u16::from_be_bytes([tcp_hdr[0], tcp_hdr[1]]);
-                    let old_dst_port = u16::from_be_bytes([tcp_hdr[2], tcp_hdr[3]]);
-                    let mut csum = u16::from_be_bytes([tcp_hdr[16], tcp_hdr[17]]);
-
-                    tcp_hdr[0..2].copy_from_slice(&self.src_port.to_be_bytes());
-                    tcp_hdr[2..4].copy_from_slice(&self.dst_port.to_be_bytes());
-
-                    macro_rules! update16 {
-                        ($old:expr, $new:expr) => {
-                            if $old != $new {
-                                csum = update_checksum(csum, $old, $new);
-                            }
-                        };
-                    }
-
-                    update16!(old_src_port, self.src_port);
-                    update16!(old_dst_port, self.dst_port);
-
-                    let old_src_hi = u16::from_be_bytes([old_src_ip[0], old_src_ip[1]]);
-                    let old_src_lo = u16::from_be_bytes([old_src_ip[2], old_src_ip[3]]);
-                    let new_src_hi = u16::from_be_bytes([self.ip_hdr.src[0], self.ip_hdr.src[1]]);
-                    let new_src_lo = u16::from_be_bytes([self.ip_hdr.src[2], self.ip_hdr.src[3]]);
-
-                    let old_dst_hi = u16::from_be_bytes([old_dst_ip[0], old_dst_ip[1]]);
-                    let old_dst_lo = u16::from_be_bytes([old_dst_ip[2], old_dst_ip[3]]);
-                    let new_dst_hi = u16::from_be_bytes([self.ip_hdr.dst[0], self.ip_hdr.dst[1]]);
-                    let new_dst_lo = u16::from_be_bytes([self.ip_hdr.dst[2], self.ip_hdr.dst[3]]);
-
-                    if old_src_ip != self.ip_hdr.src {
-                        update16!(old_src_hi, new_src_hi);
-                        update16!(old_src_lo, new_src_lo);
-                    }
-                    if old_dst_ip != self.ip_hdr.dst {
-                        update16!(old_dst_hi, new_dst_hi);
-                        update16!(old_dst_lo, new_dst_lo);
-                    }
-
-                    tcp_hdr[16..18].copy_from_slice(&csum.to_be_bytes());
+                    self.update_tcp_checksum(l4_ptr, old_src_ip, old_dst_ip, ip_changed);
                 }
-
                 17 => {
                     // UDP
-                    let udp_hdr = core::slice::from_raw_parts_mut(l4_ptr, 8);
-                    if udp_hdr.len() < 8 {
-                        return;
-                    }
-
-                    let old_src_port = u16::from_be_bytes([udp_hdr[0], udp_hdr[1]]);
-                    let old_dst_port = u16::from_be_bytes([udp_hdr[2], udp_hdr[3]]);
-                    let mut csum = u16::from_be_bytes([udp_hdr[6], udp_hdr[7]]);
-
-                    udp_hdr[0..2].copy_from_slice(&self.src_port.to_be_bytes());
-                    udp_hdr[2..4].copy_from_slice(&self.dst_port.to_be_bytes());
-
-                    if csum != 0 {
-                        macro_rules! update16 {
-                            ($old:expr, $new:expr) => {
-                                if $old != $new {
-                                    csum = update_checksum(csum, $old, $new);
-                                }
-                            };
-                        }
-
-                        update16!(old_src_port, self.src_port);
-                        update16!(old_dst_port, self.dst_port);
-
-                        // Pseudo başlık güncellemesi
-                        let old_src_hi = u16::from_be_bytes([old_src_ip[0], old_src_ip[1]]);
-                        let old_src_lo = u16::from_be_bytes([old_src_ip[2], old_src_ip[3]]);
-                        let new_src_hi =
-                            u16::from_be_bytes([self.ip_hdr.src[0], self.ip_hdr.src[1]]);
-                        let new_src_lo =
-                            u16::from_be_bytes([self.ip_hdr.src[2], self.ip_hdr.src[3]]);
-
-                        let old_dst_hi = u16::from_be_bytes([old_dst_ip[0], old_dst_ip[1]]);
-                        let old_dst_lo = u16::from_be_bytes([old_dst_ip[2], old_dst_ip[3]]);
-                        let new_dst_hi =
-                            u16::from_be_bytes([self.ip_hdr.dst[0], self.ip_hdr.dst[1]]);
-                        let new_dst_lo =
-                            u16::from_be_bytes([self.ip_hdr.dst[2], self.ip_hdr.dst[3]]);
-
-                        if old_src_ip != self.ip_hdr.src {
-                            update16!(old_src_hi, new_src_hi);
-                            update16!(old_src_lo, new_src_lo);
-                        }
-                        if old_dst_ip != self.ip_hdr.dst {
-                            update16!(old_dst_hi, new_dst_hi);
-                            update16!(old_dst_lo, new_dst_lo);
-                        }
-
-                        udp_hdr[6..8].copy_from_slice(&csum.to_be_bytes());
-                    }
+                    self.update_udp_checksum(l4_ptr, old_src_ip, old_dst_ip, ip_changed);
                 }
-
                 _ => {}
             }
-
-            net_pkt_set_modified(pkt);
         }
+    }
+
+    #[inline(always)]
+    unsafe fn update_tcp_checksum(
+        &self,
+        tcp_ptr: *mut u8,
+        old_src_ip: [u8; 4],
+        old_dst_ip: [u8; 4],
+        ip_changed: bool,
+    ) {
+        let tcp_hdr = core::slice::from_raw_parts_mut(tcp_ptr, 20);
+        if tcp_hdr.len() < 20 {
+            return;
+        }
+
+        let old_src_port = u16::from_be_bytes([tcp_hdr[0], tcp_hdr[1]]);
+        let old_dst_port = u16::from_be_bytes([tcp_hdr[2], tcp_hdr[3]]);
+        let mut csum = u16::from_be_bytes([tcp_hdr[16], tcp_hdr[17]]);
+
+        // Port güncellemeleri
+        tcp_hdr[0..2].copy_from_slice(&self.src_port.to_be_bytes());
+        tcp_hdr[2..4].copy_from_slice(&self.dst_port.to_be_bytes());
+
+        // Port değişiklikleri için checksum güncelle
+        if old_src_port != self.src_port {
+            csum = update_checksum(csum, old_src_port, self.src_port);
+        }
+        if old_dst_port != self.dst_port {
+            csum = update_checksum(csum, old_dst_port, self.dst_port);
+        }
+
+        // IP değişiklikleri için checksum güncelle
+        if ip_changed {
+            csum = self.update_checksum_for_ip(csum, old_src_ip, old_dst_ip);
+        }
+
+        tcp_hdr[16..18].copy_from_slice(&csum.to_be_bytes());
+    }
+
+    #[inline(always)]
+    unsafe fn update_udp_checksum(
+        &self,
+        udp_ptr: *mut u8,
+        old_src_ip: [u8; 4],
+        old_dst_ip: [u8; 4],
+        ip_changed: bool,
+    ) {
+        let udp_hdr = core::slice::from_raw_parts_mut(udp_ptr, 8);
+        if udp_hdr.len() < 8 {
+            return;
+        }
+
+        let old_src_port = u16::from_be_bytes([udp_hdr[0], udp_hdr[1]]);
+        let old_dst_port = u16::from_be_bytes([udp_hdr[2], udp_hdr[3]]);
+        let mut csum = u16::from_be_bytes([udp_hdr[6], udp_hdr[7]]);
+
+        // Port güncellemeleri
+        udp_hdr[0..2].copy_from_slice(&self.src_port.to_be_bytes());
+        udp_hdr[2..4].copy_from_slice(&self.dst_port.to_be_bytes());
+
+        // UDP checksum 0 ise güncelleme yapma (opsiyonel checksum)
+        if csum != 0 {
+            // Port değişiklikleri için checksum güncelle
+            if old_src_port != self.src_port {
+                csum = update_checksum(csum, old_src_port, self.src_port);
+            }
+            if old_dst_port != self.dst_port {
+                csum = update_checksum(csum, old_dst_port, self.dst_port);
+            }
+
+            // IP değişiklikleri için checksum güncelle
+            if ip_changed {
+                csum = self.update_checksum_for_ip(csum, old_src_ip, old_dst_ip);
+            }
+
+            udp_hdr[6..8].copy_from_slice(&csum.to_be_bytes());
+        }
+    }
+
+    #[inline(always)]
+    fn update_checksum_for_ip(
+        &self,
+        mut csum: u16,
+        old_src_ip: [u8; 4],
+        old_dst_ip: [u8; 4],
+    ) -> u16 {
+        // Kaynak IP değiştiyse
+        if old_src_ip != self.ip_hdr.src {
+            let old_src_hi = u16::from_be_bytes([old_src_ip[0], old_src_ip[1]]);
+            let old_src_lo = u16::from_be_bytes([old_src_ip[2], old_src_ip[3]]);
+            let new_src_hi = u16::from_be_bytes([self.ip_hdr.src[0], self.ip_hdr.src[1]]);
+            let new_src_lo = u16::from_be_bytes([self.ip_hdr.src[2], self.ip_hdr.src[3]]);
+
+            if old_src_hi != new_src_hi {
+                csum = update_checksum(csum, old_src_hi, new_src_hi);
+            }
+            if old_src_lo != new_src_lo {
+                csum = update_checksum(csum, old_src_lo, new_src_lo);
+            }
+        }
+
+        // Hedef IP değiştiyse
+        if old_dst_ip != self.ip_hdr.dst {
+            let old_dst_hi = u16::from_be_bytes([old_dst_ip[0], old_dst_ip[1]]);
+            let old_dst_lo = u16::from_be_bytes([old_dst_ip[2], old_dst_ip[3]]);
+            let new_dst_hi = u16::from_be_bytes([self.ip_hdr.dst[0], self.ip_hdr.dst[1]]);
+            let new_dst_lo = u16::from_be_bytes([self.ip_hdr.dst[2], self.ip_hdr.dst[3]]);
+
+            if old_dst_hi != new_dst_hi {
+                csum = update_checksum(csum, old_dst_hi, new_dst_hi);
+            }
+            if old_dst_lo != new_dst_lo {
+                csum = update_checksum(csum, old_dst_lo, new_dst_lo);
+            }
+        }
+
+        csum
     }
 }
