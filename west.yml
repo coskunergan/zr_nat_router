@@ -1,0 +1,37 @@
+manifest:
+  defaults:
+    remote: upstream
+  remotes:    
+    - name: upstream
+      url-base: https://github.com/zephyrproject-rtos
+    - name: zephyr-lang-rust
+      url-base: https://github.com/coskunergan
+  projects:
+    - name: zephyr
+      clone-depth: 1
+      revision: tags/v4.3.0
+      import:
+        name-whitelist:
+          - hal_espressif
+          - mcuboot
+          - mbedtls
+    - name: zephyr-lang-rust
+      remote: zephyr-lang-rust
+      revision: main
+      path: modules/lang/rust
+    - name: mbedtls
+      revision: c5b06d89c9c498d8fc8659ce31f7e53137b6270f
+      path: modules/crypto/mbedtls
+      groups:
+        - crypto      
+    - name: mcuboot
+      revision: 96576b341ee19f1c3af6622256b0d4f3d408e1e3
+      path: bootloader/mcuboot
+      groups:
+        - bootloader    
+    - name: hal_espressif
+      revision: af6cfa2e3e7098b596062ab516b80a48a7ba7332
+      path: modules/hal/espressif
+      west-commands: west/west-commands.yml
+      groups:
+        - hal
